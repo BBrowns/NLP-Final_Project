@@ -71,7 +71,7 @@ class esnli(Dataset):
         
         for (premise, hypothesis, explanation) in zip(premise_list, hypothesis_list, explanation_list):
             # Concatenate premise and hypothesis with separator token </s>
-            premise_hypothesis = f"{premise} </s> {hypothesis}"
+            premise_hypothesis = f"{premise} </s> {hypothesis} </s>"
             
             hypothesis_premise_tokens = self.tokenizer.encode_plus(
                 premise_hypothesis,
