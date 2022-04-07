@@ -9,10 +9,10 @@ from torch.utils.data import TensorDataset
 from torch.optim import AdamW
 import wandb
 import time 
+import os
 
 
-
-def train_t5(model, train_loader, val_loader, optimizer, wandb):
+def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
     """Fine-tunes the T5 model. 
 
     Args:
@@ -52,6 +52,8 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb):
             # Set the target ids and labels 
             y_ids = target_ids[:, :-1].contiguous()
             lm_labels = target_ids[:, 1:].clone().detach()
+            
+            lm_labels[target_ids[:, 1:] == tokenizer.pad_token_id] = -100
             
             # Forward pass
             outputs = model(
@@ -99,6 +101,9 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb):
                 y_ids = target_ids[:, :-1].contiguous()
                 lm_labels = target_ids[:, 1:].clone().detach()
                 
+                lm_labels[target_ids[:, 1:] == tokenizer.pad_token_id] = -100
+
+                
                 # Forward pass
                 outputs = model(
                     input_ids=input_ids,
@@ -139,10 +144,15 @@ def evaluate(model, test_loader, wandb):
         model: The model to be used for evaluation.
         test_loader (DataLoader): The test data loader.
         wandb: The wandb logger.
+    
+    Returns: 
+        Predictions, ground_truths: The predictions in combination with the ground truths.
     """
+    
     model.eval()
-    total_test_loss = 0 
-
+    predictions = []
+    ground_truths = []
+    
     # Avoid using the gradient for evaluation. Otherwise we are still training the model
     with torch.no_grad():
         for batch, (
@@ -156,35 +166,28 @@ def evaluate(model, test_loader, wandb):
             attention_mask = attention_mask.to(device).long()
             input_ids = input_ids.to(device).long()
             target_ids = target_ids.to(device).long()
+
             
-            # Set the target ids and labels 
-            y_ids = target_ids[:, :-1].contiguous()
-            lm_labels = target_ids[:, 1:].clone().detach()
-            
-            # Forward pass
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask= attention_mask,
-                decoder_input_ids=y_ids,
-                labels=lm_labels,
+            # generate the predictions
+            generated_ids = model.generate(
+                input_ids = input_ids,
+                attention_mask = attention_mask,
+                num_beams = 10,
+                max_length = 100,
+                repetition_penalty = 1.0,
+                length_penalty = 1.0,
+                early_stopping = True,
+                use_cache = True,
             )
             
-            # Get the loss
-            loss = outputs[0]
+            preds = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in generated_ids]
+            truths = [tokenizer.decode(t, skip_special_tokens=True, clean_up_tokenization_spaces=True) for t in target_ids]
             
-            # Add the loss to the total loss
-            total_test_loss += loss.item()
-        
-        # Calculate the average loss
-        test_loss = total_test_loss / len(test_loader)
-        
-        # Log the test loss
-        wandb.log(
-            {
-                "test_loss": test_loss,
-                "test_size": len(test_loader)
-                   }
-            )
+            
+            predictions.extend(preds)
+            ground_truths.extend(truths)
+    
+    return predictions, ground_truths
     
             
 
@@ -216,15 +219,28 @@ if __name__ == "__main__":
     model = T5ForConditionalGeneration.from_pretrained("t5-base", config=config)
     wandb.watch(model)
     
+    # Create t5 tokenizer
+    tokenizer = AutoTokenizer.from_pretrained("t5-base", use_fast=True)
+    
     # Use AdamW optimizer
     optimizer = AdamW(model.parameters(), lr=wandb.config.lr)
     
     model.to(device)
         
-    train_t5(model, train_loader, val_loader, optimizer, wandb)
+    train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer)
+
+
+    # Create output directory for predictions if it does ont yet exist
+    output_dir = "./predictions/"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
     
-    evaluate(model, test_loader, wandb)
-    
+    for epoch in range(wandb.config.epochs):
+        predictions, actuals = evaluate(model, test_loader, wandb)
+        val_df = pd.DataFrame({"Predictions": predictions, "Ground Truth": actuals})
+        val_df.to_csv(f"predictions/{epoch}.csv")
+        
     torch.save(model.state_dict(), "t5_model.pt")
     wandb.save("t5_model.pt")
     

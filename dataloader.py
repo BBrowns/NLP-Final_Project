@@ -15,7 +15,7 @@ import pandas as pd
 class esnli(Dataset):
     def __init__(
         self,
-        frac_of_data=0.0004, # Set the fraction of data to be used for training (right now is very low, so it will only use 4 batches)
+        frac_of_data=0.001, # Set the fraction of data to be used for training (right now is very low, so it will only use 4 batches)
     ):
         # Load dataset and turn it to a pandas dataframe 
         dataset = load_dataset("esnli")
@@ -26,11 +26,16 @@ class esnli(Dataset):
         # Refromat all data objects
         self.reformat_data()
         
+        # Print size of total data
+        print(f"Total size of data: {len(self.train_df) + len(self.val_df) + len(self.test_df)}")
+        
         if frac_of_data < 1.0:
             # randomly sample frac_of_data of the data
+            print(" ")
             self.train_df = self.train_df.sample(frac=frac_of_data, replace=False, random_state=42)
             self.val_df = self.val_df.sample(frac=frac_of_data, replace=False, random_state=42)
             self.test_df = self.test_df.sample(frac=frac_of_data, replace=False, random_state=42)
+        
         
         # Initialize the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained("t5-base", use_fast=True)
@@ -90,19 +95,35 @@ class esnli(Dataset):
         premise_list = df["premise"].tolist()
         hypothesis_list = df["hypothesis"].tolist()
         explanation_list = df["explanation_1"].tolist()
+        label_list = df["label"].tolist()
         
         # Loop through all lists simultaniously
         for (
             premise, 
             hypothesis, 
-            explanation
+            explanation,
+            label
             ) in zip(
                 premise_list, 
                 hypothesis_list, 
-                explanation_list
+                explanation_list, 
+                label_list
                 ):
             # Concatenate premise and hypothesis with separator token :: and add an end of line token
-            premise_hypothesis = f"{premise} :: {hypothesis} </s>"
+            premise_hypothesis = f"{premise} </s> {hypothesis} </s>"
+            
+            # make switch case for label if it is 0 label = entailment, if it is 1 label = neutral, if it is 2 label = contradiction
+            if label == 0:
+                label = "entailment"
+            elif label == 1:
+                label = "neutral"
+            elif label == 2:
+                label = "contradiction"
+            
+            # Concatenate label with explanation
+
+            label_explanation = f"{label} </s> {explanation} </s>" 
+            
             
             # Tokenize the premise and hypothesis
             hypothesis_premise_tokens = self.tokenizer.encode_plus(
@@ -114,7 +135,7 @@ class esnli(Dataset):
             
             # Tokenize the target explanation
             target_encoding = self.tokenizer.encode_plus(
-                explanation,
+                label_explanation,
                 truncation=True,
                 padding="longest",
                 return_token_type_ids=True,
