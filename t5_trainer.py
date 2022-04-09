@@ -1,15 +1,12 @@
-import enum
-from torchmetrics import BLEUScore
 from transformers import AutoTokenizer, T5ForConditionalGeneration, AutoConfig, AutoModelForSequenceClassification
 from dataloader import esnli
 import pandas as pd
 import torch 
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import TensorDataset
 from torch.optim import AdamW
 import wandb
 import time 
 import os
+import pickle
 
 
 def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
@@ -22,6 +19,8 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
         optimizer (torch.optim): The desired optimizer.
         wandb : The wandb logger.
     """
+    print("Training the model")
+    
     # Start training (this is just like normal training with epochs only now its being tracked)
     for epoch in range(wandb.config.epochs):
         start = time.time()
@@ -34,17 +33,17 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
         count = 0 
         # Iterate over the batches in the loader
         for batch, (
-            token_type_ids, 
-            attention_mask,
             input_ids,
+            attention_mask,
             target_ids,
         ) in enumerate(train_loader):
             print("batch number:", count)
             # Set the optimizer to zero grad to avoid accumulating gradients
             optimizer.zero_grad()
             
+            # print("input ids befor setting to device:", input_ids[0])
+            
             # Set all tensors to the device
-            token_type_ids = token_type_ids.to(device).long()
             attention_mask = attention_mask.to(device).long()
             input_ids = input_ids.to(device).long()
             target_ids = target_ids.to(device).long()
@@ -54,6 +53,12 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
             lm_labels = target_ids[:, 1:].clone().detach()
             
             lm_labels[target_ids[:, 1:] == tokenizer.pad_token_id] = -100
+            
+            # print("input ids:", input_ids[0])
+            # print("attention mask:", attention_mask)
+            # 
+            # print("y_ids:", y_ids)
+            # print("lm_labels:", lm_labels)
             
             # Forward pass
             outputs = model(
@@ -88,11 +93,9 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
         with torch.no_grad():
             for batch, (
                 input_ids, 
-                token_type_ids, 
                 attention_mask,
                 target_ids,
             ) in enumerate(val_loader):
-                token_type_ids = token_type_ids.to(device).long()
                 attention_mask = attention_mask.to(device).long()
                 input_ids = input_ids.to(device).long()
                 target_ids = target_ids.to(device).long()
@@ -137,7 +140,7 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
         )
            
             
-def evaluate(model, test_loader, wandb):
+def evaluate(model, test_loader, tokenizer, device):
     """Evaluating the model on the test set.
 
     Args:
@@ -148,40 +151,54 @@ def evaluate(model, test_loader, wandb):
     Returns: 
         Predictions, ground_truths: The predictions in combination with the ground truths.
     """
+    print("Evaluating the model")
     
     model.eval()
     predictions = []
     ground_truths = []
     
+    
+    
     # Avoid using the gradient for evaluation. Otherwise we are still training the model
     with torch.no_grad():
         for batch, (
-            token_type_ids, 
-            attention_mask,
             input_ids,
+            attention_mask,
             target_ids,
         ) in enumerate(test_loader):
             # Set all tensors to the device
-            token_type_ids = token_type_ids.to(device).long()
             attention_mask = attention_mask.to(device).long()
             input_ids = input_ids.to(device).long()
             target_ids = target_ids.to(device).long()
 
+            input = [tokenizer.decode(i, clean_up_tokenization_spaces=True) for i in input_ids]
+            print("input:", input)
             
+            
+            print("Input ids:", input_ids)
+            print("Attention mask:", attention_mask)
             # generate the predictions
             generated_ids = model.generate(
                 input_ids = input_ids,
                 attention_mask = attention_mask,
                 num_beams = 10,
                 max_length = 100,
-                repetition_penalty = 1.0,
+                repetition_penalty = 2.0,
                 length_penalty = 1.0,
                 early_stopping = True,
                 use_cache = True,
             )
-            
-            preds = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in generated_ids]
-            truths = [tokenizer.decode(t, skip_special_tokens=True, clean_up_tokenization_spaces=True) for t in target_ids]
+           
+            print("truth:")
+            print(tokenizer.decode(target_ids[0], skip_special_tokens=True))
+           
+            print("prediction:")
+            print(tokenizer.decode(generated_ids[0], skip_special_tokens=True))
+           
+            preds = [tokenizer.decode(g, skip_special_tokens=False, clean_up_tokenization_spaces=True) for g in generated_ids]
+            truths = [tokenizer.decode(t, skip_special_tokens=False, clean_up_tokenization_spaces=True) for t in target_ids]
+            print("Predictions:", preds)
+            print("Truths:", truths)
             
             
             predictions.extend(preds)
@@ -197,7 +214,7 @@ if __name__ == "__main__":
     # You might want to make your own account here: https://wandb.ai/
     # After that you can set project and entity according to your own settings.
     wandb.init(project="NLP-final-project", entity="baebrowns")
-    wandb.config.epochs = 5
+    wandb.config.epochs = 2
     wandb.config.batch_size = 64
     wandb.config.lr = 1e-5
     wandb.config.max_len = 512
@@ -237,9 +254,15 @@ if __name__ == "__main__":
         
     
     for epoch in range(wandb.config.epochs):
-        predictions, actuals = evaluate(model, test_loader, wandb)
+        predictions, actuals = evaluate(model, test_loader, tokenizer, device)
         val_df = pd.DataFrame({"Predictions": predictions, "Ground Truth": actuals})
         val_df.to_csv(f"predictions/{epoch}.csv")
+        
+        # write predictions to a pickle file
+        with open(f"predictions/{epoch}.pkl", "wb") as f:
+            pickle.dump(predictions, f)
+            
+
         
     torch.save(model.state_dict(), "t5_model.pt")
     wandb.save("t5_model.pt")

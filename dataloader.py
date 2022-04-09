@@ -1,12 +1,7 @@
-from lib2to3.pgen2 import token
-from telnetlib import TELNET_PORT
-from matplotlib import use
-from pydantic import NonNegativeFloat
-from spacy import explain, load
 import torch
 
 from torch.nn.utils.rnn import pad_sequence
-from transformers import T5Tokenizer, T5ForConditionalGeneration, AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer
 from torch.utils.data import Dataset, TensorDataset, DataLoader
 from datasets import load_dataset
 
@@ -142,26 +137,29 @@ class esnli(Dataset):
                 max_length=256,
             )
             
+            
+            
+            
             # For the input reurn the input_ids, attention_mask and token_type_ids as tensor to the list
-            token_type_ids.append(torch.Tensor(hypothesis_premise_tokens.token_type_ids))
             attention_mask.append(torch.Tensor(hypothesis_premise_tokens.attention_mask))
             input_ids.append(torch.Tensor(hypothesis_premise_tokens.input_ids))
             
             # For the target return the target_ids as tensor to the list
             target_ids.append(torch.Tensor(target_encoding.input_ids))
-        
+            
+            
         # Pad the sequences such that they are all of equal length. 
         # Batch_first means that we use the batch dimension as the first dimension.
-        token_type_ids = pad_sequence(token_type_ids, batch_first=True)
         attention_mask = pad_sequence(attention_mask, batch_first=True)
         input_ids = pad_sequence(input_ids, batch_first=True)
         target = pad_sequence(target_ids, batch_first=True)
+        
+        print(f"input_ids: {input_ids}")
         
         # Convert the tensors to tensordataset
         dataset = TensorDataset(
             input_ids,
             attention_mask,
-            token_type_ids,
             target
         )
         return dataset
