@@ -38,7 +38,7 @@ test_df = test_df.iloc[:len(val_df)]
 final_df = pd.concat([test_df, val_df], axis=1)
 
 
-final_df.to_csv(f"predictions/evaluation.csv", delimiter= ";")
+final_df.to_csv(f"predictions/evaluation.csv", sep= ";")
 
 # write predictions to a pickle file
 with open(f"predictions/evaluation.pkl", "wb") as f:
