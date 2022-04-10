@@ -195,8 +195,8 @@ def evaluate(model, test_loader, tokenizer, device):
             # print("prediction:")
             print(tokenizer.decode(generated_ids[0], skip_special_tokens=True))
            
-            preds = [tokenizer.decode(g, skip_special_tokens=False, clean_up_tokenization_spaces=True) for g in generated_ids]
-            truths = [tokenizer.decode(t, skip_special_tokens=False, clean_up_tokenization_spaces=True) for t in target_ids]
+            preds = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in generated_ids]
+            truths = [tokenizer.decode(t, skip_special_tokens=True, clean_up_tokenization_spaces=True) for t in target_ids]
             # print("Predictions:", preds)
             # print("Truths:", truths)
             
@@ -214,7 +214,7 @@ if __name__ == "__main__":
     # You might want to make your own account here: https://wandb.ai/
     # After that you can set project and entity according to your own settings.
     wandb.init(project="NLP-final-project", entity="baebrowns")
-    wandb.config.epochs = 2
+    wandb.config.epochs = 3
     wandb.config.batch_size = 64
     wandb.config.lr = 1e-5
     wandb.config.max_len = 512

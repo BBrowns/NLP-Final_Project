@@ -10,10 +10,11 @@ import pandas as pd
 class esnli(Dataset):
     def __init__(
         self,
-        frac_of_data=0.001, # Set the fraction of data to be used for training (right now is very low, so it will only use 4 batches)
+        frac_of_data=0.01, # Set the fraction of data to be used for training (right now is very low, so it will only use 4 batches)
     ):
         # Load dataset and turn it to a pandas dataframe 
         dataset = load_dataset("esnli")
+        # Print dataset heads 
         self.train_df = pd.DataFrame.from_dict(dataset["train"])
         self.val_df = pd.DataFrame.from_dict(dataset["validation"])
         self.test_df = pd.DataFrame.from_dict(dataset["test"])
@@ -33,9 +34,9 @@ class esnli(Dataset):
             print(" ")
             self.train_df = self.train_df.sample(frac=frac_of_data, replace=False, random_state=42)
             self.val_df = self.val_df.sample(frac=frac_of_data, replace=False, random_state=42)
-            self.test_df = self.test_df.sample(frac=frac_of_data, replace=False, random_state=42)
-        
-        
+            # Get first frac*len(self.test_df) samples
+            self.test_df = self.test_df.iloc[:int(frac_of_data*len(self.test_df))]
+                
         # Initialize the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained("t5-base", use_fast=True)
         
@@ -73,7 +74,7 @@ class esnli(Dataset):
         val_loader = DataLoader(self.val_data, shuffle=shuffle, batch_size=batch_size)
 
         print("initializing test data loader")
-        test_loader = DataLoader(self.test_data, shuffle=shuffle, batch_size=batch_size)
+        test_loader = DataLoader(self.test_data, shuffle=False, batch_size=batch_size)
 
         return train_loader, val_loader, test_loader
         
@@ -121,13 +122,13 @@ class esnli(Dataset):
             
             # Concatenate label with explanation
 
-            label_explanation = f"{label} :: {explanation} </s>" 
+            label_explanation = f"{label} </s> {explanation} </s>" 
             
             
             # Tokenize the premise and hypothesis
             hypothesis_premise_tokens = self.tokenizer.encode_plus(
                 premise_hypothesis,
-                truncation=True, 
+                padding="longest", 
                 return_token_type_ids=True, 
                 max_length=256,
                 )
@@ -180,7 +181,7 @@ class esnli(Dataset):
                 "explanation_2", 
                 "explanation_3"
             ]
-        ] = self.train_df[
+        ] = self.test_df[
             [
                 "premise", 
                 "hypothesis", 
