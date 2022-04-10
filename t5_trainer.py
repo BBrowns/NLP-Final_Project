@@ -24,11 +24,10 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
     # Start training (this is just like normal training with epochs only now its being tracked)
     for epoch in range(wandb.config.epochs):
         start = time.time()
-        print("Epoch: ", epoch)
         # Set the model to train
         model.train()
         total_train_loss = 0 
-        print("training loader:", len(train_loader))
+        
         
         count = 0 
         # Iterate over the batches in the loader
@@ -37,7 +36,6 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
             attention_mask,
             target_ids,
         ) in enumerate(train_loader):
-            print("batch number:", count)
             # Set the optimizer to zero grad to avoid accumulating gradients
             optimizer.zero_grad()
             
@@ -53,12 +51,6 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
             lm_labels = target_ids[:, 1:].clone().detach()
             
             lm_labels[target_ids[:, 1:] == tokenizer.pad_token_id] = -100
-            
-            # print("input ids:", input_ids[0])
-            # print("attention mask:", attention_mask)
-            # 
-            # print("y_ids:", y_ids)
-            # print("lm_labels:", lm_labels)
             
             # Forward pass
             outputs = model(
@@ -157,8 +149,6 @@ def evaluate(model, test_loader, tokenizer, device):
     predictions = []
     ground_truths = []
     
-    
-    
     # Avoid using the gradient for evaluation. Otherwise we are still training the model
     with torch.no_grad():
         for batch, (
@@ -170,14 +160,7 @@ def evaluate(model, test_loader, tokenizer, device):
             attention_mask = attention_mask.to(device).long()
             input_ids = input_ids.to(device).long()
             target_ids = target_ids.to(device).long()
-
-            input = [tokenizer.decode(i, clean_up_tokenization_spaces=True) for i in input_ids]
-            # print("input:", input)
-            # 
-            # 
-            # print("Input ids:", input_ids)
-            # print("Attention mask:", attention_mask)
-            # generate the predictions
+        
             generated_ids = model.generate(
                 input_ids = input_ids,
                 attention_mask = attention_mask,
@@ -189,16 +172,8 @@ def evaluate(model, test_loader, tokenizer, device):
                 use_cache = True,
             )
            
-            # print("truth:")
-            print(tokenizer.decode(target_ids[0], skip_special_tokens=True))
-           
-            # print("prediction:")
-            print(tokenizer.decode(generated_ids[0], skip_special_tokens=True))
-           
             preds = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in generated_ids]
             truths = [tokenizer.decode(t, skip_special_tokens=True, clean_up_tokenization_spaces=True) for t in target_ids]
-            # print("Predictions:", preds)
-            # print("Truths:", truths)
             
             
             predictions.extend(preds)
@@ -211,22 +186,24 @@ def evaluate(model, test_loader, tokenizer, device):
 if __name__ == "__main__":
     
     # The weights and biases (wandb) libary let's us keep track of the model's hyperparameters and configurations during training. 
-    # You might want to make your own account here: https://wandb.ai/
-    # After that you can set project and entity according to your own settings.
+    # You might want to make your own account here: https://wandb.ai/ 
+    # After that you can set project and entity according to your own settings. 
+    
     wandb.init(project="NLP-final-project", entity="baebrowns")
-    wandb.config.epochs = 3
+    wandb.config.epochs = 5
     wandb.config.batch_size = 64
     wandb.config.lr = 1e-5
     wandb.config.max_len = 512
     wandb.config.frac_of_data = 0.01
     wandb.config.multi_gpu = True
+    wandb.config.frac_of_data = 0.5
     
     # Set the device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device: ", device)
 
     # Load the dataset from dataloader
-    dataset = esnli()
+    dataset = esnli(frac_of_data=wandb.config.frac_of_data)
     
     # Load dataloaders
     train_loader, val_loader, test_loader = dataset.get_data_loaders(batch_size = wandb.config.batch_size)

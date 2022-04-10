@@ -9,37 +9,42 @@ import pandas as pd
 
 from datasets import load_dataset
 
-model = T5ForConditionalGeneration.from_pretrained("t5-base")
-# get current working directory
 
-model.load_state_dict(torch.load("t5_model_peregrine.pt", map_location="cpu"))
+def evaluate():
+    model = T5ForConditionalGeneration.from_pretrained("t5-base")
+    # get current working directory
 
-tokenizer = AutoTokenizer.from_pretrained("t5-base", use_fast=True)
+    model.load_state_dict(torch.load("t5_model_peregrine.pt", map_location="cpu"))
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    tokenizer = AutoTokenizer.from_pretrained("t5-base", use_fast=True)
 
-dataset = esnli()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# load test loader 
-train_loader, val_loader, test_loader = dataset.get_data_loaders(batch_size=32)
+    dataset = esnli(frac_of_data=0.5)
 
-predictions, actuals = t5_trainer.evaluate(model, test_loader, tokenizer, device)
-val_df = pd.DataFrame({"Predictions": predictions, "Target": actuals})
+    # load test loader 
+    train_loader, val_loader, test_loader = dataset.get_data_loaders(batch_size=32)
 
-# load the esnli dataset
-temp_df = load_dataset("esnli")
+    predictions, actuals = t5_trainer.evaluate(model, test_loader, tokenizer, device)
+    val_df = pd.DataFrame({"Predictions": predictions, "Target": actuals})
 
-# take half of the test set 
-test_df = pd.DataFrame.from_dict(temp_df["test"])
-# get same length of tes_df
-test_df = test_df.iloc[:len(val_df)]
+    # load the esnli dataset
+    temp_df = load_dataset("esnli")
 
-# concatenate the two datasets on same row 
-final_df = pd.concat([test_df, val_df], axis=1)
+    # take half of the test set 
+    test_df = pd.DataFrame.from_dict(temp_df["test"])
+    # get same length of tes_df
+    test_df = test_df.iloc[:len(val_df)]
+
+    # concatenate the two datasets on same row 
+    final_df = pd.concat([test_df, val_df], axis=1)
 
 
-final_df.to_csv(f"predictions/evaluation.csv", sep= ";")
+    final_df.to_csv(f"predictions/evaluation.csv", sep= ";")
 
-# write predictions to a pickle file
-with open(f"predictions/evaluation.pkl", "wb") as f:
-    pickle.dump(predictions, f)
+    # write predictions to a pickle file
+    with open(f"predictions/evaluation.pkl", "wb") as f:
+        pickle.dump(predictions, f)
+
+if __name__ == "__main__":
+    evaluate()

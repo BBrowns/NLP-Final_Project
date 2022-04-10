@@ -8,9 +8,14 @@ from datasets import load_dataset
 import pandas as pd
 
 class esnli(Dataset):
+    """ This class will load the esnli dataset and returns the data loaders. 
+
+    Args:
+        Dataset (Torch.data): Dataset subclass for datasets.
+    """
     def __init__(
         self,
-        frac_of_data=0.01, # Set the fraction of data to be used for training (right now is very low, so it will only use 4 batches)
+        frac_of_data=0.5, # Set the fraction of data to be used for training.
     ):
         # Load dataset and turn it to a pandas dataframe 
         dataset = load_dataset("esnli")
@@ -89,7 +94,6 @@ class esnli(Dataset):
         """
         input_ids = []
         attention_mask = []
-        token_type_ids = []
         target_ids = []
         
         premise_list = df["premise"].tolist()

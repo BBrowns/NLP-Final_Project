@@ -190,13 +190,13 @@ def evaluate(model, test_loader, tokenizer, device):
             )
            
             # print("truth:")
-            print(tokenizer.decode(target_ids[0], skip_special_tokens=True))
-           
-            # print("prediction:")
-            print(tokenizer.decode(generated_ids[0], skip_special_tokens=True))
-           
-            preds = [tokenizer.decode(g, skip_special_tokens=False, clean_up_tokenization_spaces=True) for g in generated_ids]
-            truths = [tokenizer.decode(t, skip_special_tokens=False, clean_up_tokenization_spaces=True) for t in target_ids]
+        #     print(tokenizer.decode(target_ids[0], skip_special_tokens=True))
+        #    
+        #     # print("prediction:")
+        #     print(tokenizer.decode(generated_ids[0], skip_special_tokens=True))
+        #    
+            preds = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in generated_ids]
+            truths = [tokenizer.decode(t, skip_special_tokens=True, clean_up_tokenization_spaces=True) for t in target_ids]
             # print("Predictions:", preds)
             # print("Truths:", truths)
             
@@ -226,7 +226,7 @@ if __name__ == "__main__":
     print("Device: ", device)
 
     # Load the dataset from dataloader
-    dataset = esnli()
+    dataset = esnli(frac_of_data=0.5)
     
     # Load dataloaders
     train_loader, val_loader, test_loader = dataset.get_data_loaders(batch_size = 32)
@@ -261,9 +261,6 @@ if __name__ == "__main__":
         # write predictions to a pickle file
         with open(f"predictions/{epoch}.pkl", "wb") as f:
             pickle.dump(predictions, f)
-            
-
-        
+                    
     torch.save(model.state_dict(), "t5_model.pt")
-    # wandb.save("t5_model.pt")
     
