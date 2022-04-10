@@ -24,6 +24,10 @@ class esnli(Dataset):
         # Print size of total data
         print(f"Total size of data: {len(self.train_df) + len(self.val_df) + len(self.test_df)}")
         
+        print(f"Size of train data: {len(self.train_df)}")
+        print(f"Size of val data: {len(self.val_df)}")
+        print(f"Size of test data: {len(self.test_df)}")
+        
         if frac_of_data < 1.0:
             # randomly sample frac_of_data of the data
             print(" ")
@@ -117,7 +121,7 @@ class esnli(Dataset):
             
             # Concatenate label with explanation
 
-            label_explanation = f"{label} </s> {explanation} </s>" 
+            label_explanation = f"{label} :: {explanation} </s>" 
             
             
             # Tokenize the premise and hypothesis
@@ -154,7 +158,7 @@ class esnli(Dataset):
         input_ids = pad_sequence(input_ids, batch_first=True)
         target = pad_sequence(target_ids, batch_first=True)
         
-        print(f"input_ids: {input_ids}")
+        # print(f"input_ids: {input_ids}")
         
         # Convert the tensors to tensordataset
         dataset = TensorDataset(

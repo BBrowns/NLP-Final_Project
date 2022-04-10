@@ -1,15 +1,15 @@
-from transformers import AutoTokenizer, T5ForConditionalGeneration, AutoConfig, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, T5ForConditionalGeneration, AutoConfig, BartForConditionalGeneration
 from dataloader import esnli
 import pandas as pd
 import torch 
 from torch.optim import AdamW
-import wandb
+# import wandb
 import time 
 import os
 import pickle
 
 
-def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
+def train_t5(model, train_loader, val_loader, optimizer, tokenizer):
     """Fine-tunes the T5 model. 
 
     Args:
@@ -22,7 +22,7 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
     print("Training the model")
     
     # Start training (this is just like normal training with epochs only now its being tracked)
-    for epoch in range(wandb.config.epochs):
+    for epoch in range(5):
         start = time.time()
         print("Epoch: ", epoch)
         # Set the model to train
@@ -128,16 +128,16 @@ def train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer):
         hours, rem = divmod(end-start, 3600)
 
         # Log the training loss and validation loss
-        wandb.log(
-            {
-                "val_loss": val_loss,
-                "time": "{:0>2}:{:05.2f}".format(int(hours), rem),
-                "epoch": epoch,
-                "train_loss": train_loss,
-                "train_size": len(train_loader),
-                "val_size": len(val_loader),
-            }
-        )
+        # wandb.log(
+        #     {
+        #         "val_loss": val_loss,
+        #         "time": "{:0>2}:{:05.2f}".format(int(hours), rem),
+        #         "epoch": epoch,
+        #         "train_loss": train_loss,
+        #         "train_size": len(train_loader),
+        #         "val_size": len(val_loader),
+        #     }
+        # )
            
             
 def evaluate(model, test_loader, tokenizer, device):
@@ -171,7 +171,7 @@ def evaluate(model, test_loader, tokenizer, device):
             input_ids = input_ids.to(device).long()
             target_ids = target_ids.to(device).long()
 
-            input = [tokenizer.decode(i, clean_up_tokenization_spaces=True) for i in input_ids]
+            # input = [tokenizer.decode(i, clean_up_tokenization_spaces=True) for i in input_ids]
             # print("input:", input)
             # 
             # 
@@ -209,17 +209,17 @@ def evaluate(model, test_loader, tokenizer, device):
             
 
 if __name__ == "__main__":
-    
-    # The weights and biases (wandb) libary let's us keep track of the model's hyperparameters and configurations during training. 
-    # You might want to make your own account here: https://wandb.ai/
-    # After that you can set project and entity according to your own settings.
-    wandb.init(project="NLP-final-project", entity="baebrowns")
-    wandb.config.epochs = 2
-    wandb.config.batch_size = 64
-    wandb.config.lr = 1e-5
-    wandb.config.max_len = 512
-    wandb.config.frac_of_data = 0.01
-    wandb.config.multi_gpu = True
+    # 
+    # # The weights and biases (wandb) libary let's us keep track of the model's hyperparameters and configurations during training. 
+    # # You might want to make your own account here: https://wandb.ai/
+    # # After that you can set project and entity according to your own settings.
+    # wandb.init(project="NLP-final-project", entity="baebrowns")
+    # wandb.config.epochs = 2
+    # wandb.config.batch_size = 256
+    # wandb.config.lr = 1e-5
+    # wandb.config.max_len = 512
+    # wandb.config.frac_of_data = 0.01
+    # wandb.config.multi_gpu = True
     
     # Set the device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -229,22 +229,22 @@ if __name__ == "__main__":
     dataset = esnli()
     
     # Load dataloaders
-    train_loader, val_loader, test_loader = dataset.get_data_loaders(batch_size = wandb.config.batch_size)
+    train_loader, val_loader, test_loader = dataset.get_data_loaders(batch_size = 32)
     
     # set model configuration and model
-    config = AutoConfig.from_pretrained("t5-base") 
+    config = AutoConfig.from_pretrained("t5-base", ) 
     model = T5ForConditionalGeneration.from_pretrained("t5-base", config=config)
-    wandb.watch(model)
+    # wandb.watch(model)
     
     # Create t5 tokenizer
     tokenizer = AutoTokenizer.from_pretrained("t5-base", use_fast=True)
     
     # Use AdamW optimizer
-    optimizer = AdamW(model.parameters(), lr=wandb.config.lr)
+    optimizer = AdamW(model.parameters(), lr=1e-5)
     
     model.to(device)
         
-    train_t5(model, train_loader, val_loader, optimizer, wandb, tokenizer)
+    train_t5(model, train_loader, val_loader, optimizer, tokenizer)
 
 
     # Create output directory for predictions if it does ont yet exist
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         os.makedirs(output_dir)
         
     
-    for epoch in range(wandb.config.epochs):
+    for epoch in range(5):
         predictions, actuals = evaluate(model, test_loader, tokenizer, device)
         val_df = pd.DataFrame({"Predictions": predictions, "Ground Truth": actuals})
         val_df.to_csv(f"predictions/{epoch}.csv")
@@ -265,5 +265,5 @@ if __name__ == "__main__":
 
         
     torch.save(model.state_dict(), "t5_model.pt")
-    wandb.save("t5_model.pt")
+    # wandb.save("t5_model.pt")
     
